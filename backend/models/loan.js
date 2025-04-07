@@ -135,15 +135,37 @@ class Loan {
         throw new Error(`Loan with ID ${loanId} not found`);
       }
       
+      // Extract payment fields
+      const { amount, isInstallment, installmentNumber, totalInstallments, frequency } = paymentData;
+      
+      // For SQLite, you'll need to update your schema to include these fields
       const result = await db.run(
-        'INSERT INTO payments (loanId, amount) VALUES (?, ?)',
-        [loanId, paymentData.amount]
+        `INSERT INTO payments (
+          loanId, 
+          amount, 
+          isInstallment, 
+          installmentNumber, 
+          totalInstallments, 
+          frequency
+        ) VALUES (?, ?, ?, ?, ?, ?)`,
+        [
+          loanId, 
+          amount, 
+          isInstallment ? 1 : 0, 
+          installmentNumber || null, 
+          totalInstallments || null, 
+          frequency || null
+        ]
       );
       
       return { 
         id: result.lastID, 
         loanId, 
-        amount: paymentData.amount,
+        amount,
+        isInstallment,
+        installmentNumber,
+        totalInstallments,
+        frequency,
         paymentDate: new Date().toISOString()
       };
     } catch (error) {

@@ -7,18 +7,18 @@ const path = require('path');
  * @returns {Promise<sqlite.Database>} Database connection
  */
 const initializeDatabase = async () => {
-  try {
-    // Open database connection
-    const db = await open({
-      filename: path.join(__dirname, 'database.sqlite'),
-      driver: sqlite3.Database
-    });
-    
-    // Enable foreign keys
-    await db.exec('PRAGMA foreign_keys = ON');
-    
-    // Create loans table if it doesn't exist
-    await db.exec(`
+    try {
+        // Open database connection
+        const db = await open({
+            filename: path.join(__dirname, 'database.sqlite'),
+            driver: sqlite3.Database
+        });
+
+        // Enable foreign keys
+        await db.exec('PRAGMA foreign_keys = ON');
+
+        // Create loans table if it doesn't exist
+        await db.exec(`
       CREATE TABLE IF NOT EXISTS loans (
         id INTEGER PRIMARY KEY AUTOINCREMENT,
         name TEXT NOT NULL,
@@ -27,36 +27,40 @@ const initializeDatabase = async () => {
         createdAt TEXT DEFAULT CURRENT_TIMESTAMP
       );
     `);
-    
-    // Create payments table if it doesn't exist
-    await db.exec(`
-      CREATE TABLE IF NOT EXISTS payments (
+
+        // Create payments table if it doesn't exist
+        await db.exec(`
+        CREATE TABLE IF NOT EXISTS payments (
         id INTEGER PRIMARY KEY AUTOINCREMENT,
         loanId INTEGER NOT NULL,
         amount REAL NOT NULL,
         paymentDate TEXT DEFAULT CURRENT_TIMESTAMP,
+        isInstallment INTEGER DEFAULT 0,
+        installmentNumber INTEGER,
+        totalInstallments INTEGER,
+        frequency TEXT,
         FOREIGN KEY (loanId) REFERENCES loans(id) ON DELETE CASCADE
-      );
+        );
     `);
-    
-    console.log('Database initialized successfully');
-    return db;
-  } catch (error) {
-    console.error('Database initialization failed:', error);
-    throw error;
-  }
+
+        console.log('Database initialized successfully');
+        return db;
+    } catch (error) {
+        console.error('Database initialization failed:', error);
+        throw error;
+    }
 };
 
 // Export a singleton database connection
 let dbInstance = null;
 
 const getDatabase = async () => {
-  if (!dbInstance) {
-    dbInstance = await initializeDatabase();
-  }
-  return dbInstance;
+    if (!dbInstance) {
+        dbInstance = await initializeDatabase();
+    }
+    return dbInstance;
 };
 
 module.exports = {
-  getDatabase
+    getDatabase
 };

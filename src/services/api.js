@@ -10,7 +10,7 @@ import {
 const API_URL = 'http://localhost:3000'; 
 const isServerAvailable = async () => {
   try {
-    await axios.get(`${API_URL}/health`);
+    await axios.get(`${API_URL}/loans/health`);
     return true;
   } catch (error) {
     console.log('Server unavailable, using offline storage');
@@ -97,14 +97,25 @@ export const deleteLoan = async (id) => {
 };
 
 export const addPayment = async (loanId, payment) => {
-  try {
-    if (await isServerAvailable()) {
-      const response = await axios.post(`${API_URL}/loans/${loanId}/payments`, payment);
-      // Update local storage with the new payment
-      await addPaymentToLoanInStorage(loanId, response.data);
-      return response;
-    } else {
-      // Create an offline payment and save locally
+    try {
+      if (await isServerAvailable()) {
+        const response = await axios.post(`${API_URL}/loans/${loanId}/payments`, payment);
+        // Update local storage with the new payment
+        await addPaymentToLoanInStorage(loanId, response.data);
+        return response;
+      } else {
+        // Create an offline payment and save locally
+        const offlinePayment = { 
+          ...payment, 
+          id: generateUniqueId(),
+          paymentDate: new Date().toISOString()
+        };
+        await addPaymentToLoanInStorage(loanId, offlinePayment);
+        return { data: offlinePayment };
+      }
+    } catch (error) {
+      console.error(`Error adding payment to loan ${loanId}:`, error);
+      // Fall back to local storage if server request fails
       const offlinePayment = { 
         ...payment, 
         id: generateUniqueId(),
@@ -113,15 +124,4 @@ export const addPayment = async (loanId, payment) => {
       await addPaymentToLoanInStorage(loanId, offlinePayment);
       return { data: offlinePayment };
     }
-  } catch (error) {
-    console.error(`Error adding payment to loan ${loanId}:`, error);
-    // Fall back to local storage if server request fails
-    const offlinePayment = { 
-      ...payment, 
-      id: generateUniqueId(),
-      paymentDate: new Date().toISOString()
-    };
-    await addPaymentToLoanInStorage(loanId, offlinePayment);
-    return { data: offlinePayment };
-  }
-};
+  };

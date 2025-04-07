@@ -80,7 +80,7 @@ app.post('/loans/:id/payments', async (req, res) => {
     res.status(500).json({ error: 'Failed to add payment' });
   }
 });
-app.get('/health', (req, res) => {
+app.get('/loans/health', (req, res) => {
   res.status(200).json({ status: 'ok' });
 });
 
