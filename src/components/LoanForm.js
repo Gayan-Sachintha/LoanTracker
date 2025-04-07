@@ -3,7 +3,6 @@ import { View, TextInput, Button, Platform, Alert, ActivityIndicator } from 'rea
 import DateTimePicker from '@react-native-community/datetimepicker';
 import { addLoan } from '../services/api';
 import { scheduleNotification } from '../services/notifications';
-import { styles } from '../styles/globalStyles';
 
 const LoanForm = ({ navigation }) => {
   const [name, setName] = useState('');
@@ -44,7 +43,7 @@ const LoanForm = ({ navigation }) => {
       
       const response = await addLoan(loan);
       
-      // Schedule notification regardless of online/offline status
+      
       await scheduleNotification(name, dueDate);
       
       Alert.alert(
@@ -58,7 +57,7 @@ const LoanForm = ({ navigation }) => {
         'Error',
         'There was a problem adding the loan. Data has been saved locally.'
       );
-      // Navigate back anyway since we're saving offline
+      
       navigation.goBack();
     } finally {
       setIsSubmitting(false);
@@ -66,13 +65,33 @@ const LoanForm = ({ navigation }) => {
   };
 
   return (
-    <View style={styles.container}>
+    <View
+      style={{
+        flex: 1,
+        backgroundColor: '#f5f5f5', 
+        padding: 20, 
+        justifyContent: 'center', 
+      }}
+    >
       <TextInput 
         placeholder="Borrower Name" 
         value={name} 
         onChangeText={setName} 
-        style={styles.input} 
         autoCapitalize="words"
+        style={{
+          backgroundColor: '#ffffff', 
+          borderRadius: 8, 
+          padding: 12, 
+          marginBottom: 16, 
+          fontSize: 16, 
+          borderWidth: 1, 
+          borderColor: '#ddd', 
+          shadowColor: '#000', 
+          shadowOffset: { width: 0, height: 1 },
+          shadowOpacity: 0.1,
+          shadowRadius: 2,
+          elevation: 2, 
+        }} 
       />
       
       <TextInput 
@@ -80,13 +99,33 @@ const LoanForm = ({ navigation }) => {
         value={amount} 
         onChangeText={setAmount} 
         keyboardType="numeric" 
-        style={styles.input} 
+        style={{
+          backgroundColor: '#ffffff', 
+          borderRadius: 8, 
+          padding: 12, 
+          marginBottom: 16, 
+          fontSize: 16, 
+          borderWidth: 1, 
+          borderColor: '#ddd', 
+          shadowColor: '#000', 
+          shadowOffset: { width: 0, height: 1 },
+          shadowOpacity: 0.1,
+          shadowRadius: 2,
+          elevation: 2, 
+        }} 
       />
       
-      <Button 
-        title={`Due Date: ${dueDate.toLocaleDateString()}`} 
-        onPress={() => setShowDatePicker(true)} 
-      />
+      <View
+        style={{
+          marginBottom: 20, 
+        }}
+      >
+        <Button 
+          title={`Due Date: ${dueDate.toLocaleDateString()}`} 
+          onPress={() => setShowDatePicker(true)} 
+          color={Platform.OS === 'ios' ? '#007AFF' : '#6200EE'} 
+        />
+      </View>
       
       {showDatePicker && (
         <DateTimePicker
@@ -97,13 +136,33 @@ const LoanForm = ({ navigation }) => {
             setShowDatePicker(Platform.OS === 'ios' ? true : false);
             if (date) setDueDate(date);
           }}
+          style={{
+            backgroundColor: '#ffffff', 
+            borderRadius: 8, 
+          }}
         />
       )}
       
       {isSubmitting ? (
-        <ActivityIndicator size="large" style={{ marginTop: 20 }} />
+        <ActivityIndicator 
+          size="large" 
+          color="#6200EE" 
+          style={{ marginTop: 20 }} 
+        />
       ) : (
-        <Button title="Add Loan" onPress={handleSubmit} style={{ marginTop: 20 }} />
+        <View
+          style={{
+            marginTop: 20, 
+            borderRadius: 8, 
+            overflow: 'hidden', 
+          }}
+        >
+          <Button 
+            title="Add Loan" 
+            onPress={handleSubmit} 
+            color={Platform.OS === 'ios' ? '#007AFF' : '#6200EE'} 
+          />
+        </View>
       )}
     </View>
   );

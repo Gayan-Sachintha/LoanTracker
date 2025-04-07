@@ -3,7 +3,6 @@ import { View, FlatList, Button, Text, ActivityIndicator, RefreshControl } from 
 import { useFocusEffect } from '@react-navigation/native';
 import LoanCard from '../components/LoanCard';
 import { getLoans } from '../services/api';
-import { styles } from '../styles/globalStyles';
 
 const HomeScreen = ({ navigation }) => {
   const [loans, setLoans] = useState([]);
@@ -22,7 +21,7 @@ const HomeScreen = ({ navigation }) => {
     }
   };
 
-  // Fetch loans when the screen is focused
+  
   useFocusEffect(
     useCallback(() => {
       fetchLoans();
@@ -36,14 +35,40 @@ const HomeScreen = ({ navigation }) => {
   };
 
   return (
-    <View style={styles.container}>
+    <View
+      style={{
+        flex: 1,
+        backgroundColor: '#f5f5f5', 
+        paddingTop: 20, 
+      }}
+    >
       {loading && !refreshing ? (
-        <ActivityIndicator size="large" style={{ marginTop: 20 }} />
+        <ActivityIndicator 
+          size="large" 
+          color="#6200EE" 
+          style={{ marginTop: 20, flex: 1, justifyContent: 'center' }} 
+        />
       ) : (
         <>
           {loans.length === 0 ? (
-            <View style={styles.emptyState}>
-              <Text style={styles.emptyStateText}>No loans yet. Add your first loan!</Text>
+            <View
+              style={{
+                flex: 1,
+                justifyContent: 'center', 
+                alignItems: 'center', 
+                padding: 20,
+              }}
+            >
+              <Text
+                style={{
+                  fontSize: 18,
+                  color: '#666', 
+                  textAlign: 'center',
+                  fontWeight: '500',
+                }}
+              >
+                No loans yet. Add your first loan!
+              </Text>
             </View>
           ) : (
             <FlatList
@@ -52,15 +77,39 @@ const HomeScreen = ({ navigation }) => {
                 <LoanCard loan={item} navigation={navigation} />
               )}
               keyExtractor={(item) => item.id.toString()}
+              contentContainerStyle={{
+                paddingBottom: 80, 
+              }}
               refreshControl={
-                <RefreshControl refreshing={refreshing} onRefresh={onRefresh} />
+                <RefreshControl 
+                  refreshing={refreshing} 
+                  onRefresh={onRefresh} 
+                  tintColor="#6200EE" 
+                />
               }
             />
           )}
-          <Button
-            title="Add Loan"
-            onPress={() => navigation.navigate('AddLoan')}
-          />
+          <View
+            style={{
+              position: 'absolute', 
+              bottom: 20,
+              left: 20,
+              right: 20,
+              borderRadius: 8, 
+              overflow: 'hidden', 
+              shadowColor: '#000', 
+              shadowOffset: { width: 0, height: 2 },
+              shadowOpacity: 0.2,
+              shadowRadius: 4,
+              elevation: 4, 
+            }}
+          >
+            <Button
+              title="Add Loan"
+              onPress={() => navigation.navigate('AddLoan')}
+              color={Platform.OS === 'ios' ? '#007AFF' : '#6200EE'} 
+            />
+          </View>
         </>
       )}
     </View>
