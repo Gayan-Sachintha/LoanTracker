@@ -9,7 +9,7 @@ const LoanCard = ({ loan, navigation }) => {
     >
       <View style={styles.card}>
         <Text>{loan.name}</Text>
-        <Text>Amount: ${loan.amount}</Text>
+        <Text>Amount: LKR:{loan.amount}</Text>
         <Text>Due: {loan.dueDate}</Text>
       </View>
     </TouchableOpacity>
