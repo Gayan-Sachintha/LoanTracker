@@ -203,6 +203,45 @@ class Loan {
       throw error;
     }
   }
+
+  static async deletePayment(loanId, paymentId) {
+    try {
+      const db = await getDatabase();
+      
+      // Check if payment exists
+      const payment = await db.get('SELECT * FROM payments WHERE id = ? AND loanId = ?', [paymentId, loanId]);
+      if (!payment) {
+        throw new Error(`Payment with ID ${paymentId} not found`);
+      }
+      
+      await db.run('DELETE FROM payments WHERE id = ? AND loanId = ?', [paymentId, loanId]);
+      return true;
+    } catch (error) {
+      console.error(`Error deleting payment ${paymentId}:`, error);
+      throw error;
+    }
+  }
+
+  static async updatePayment(loanId, paymentId, paymentData) {
+    try {
+      const db = await getDatabase();
+      
+      const payment = await db.get('SELECT * FROM payments WHERE id = ? AND loanId = ?', [paymentId, loanId]);
+      if (!payment) {
+        throw new Error(`Payment with ID ${paymentId} not found`);
+      }
+      
+      await db.run(
+        'UPDATE payments SET amount = ? WHERE id = ? AND loanId = ?',
+        [paymentData.amount, paymentId, loanId]
+      );
+      
+      return { ...payment, amount: paymentData.amount };
+    } catch (error) {
+      console.error(`Error updating payment ${paymentId}:`, error);
+      throw error;
+    }
+  }
 }
 
 module.exports = Loan;

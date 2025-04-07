@@ -1,28 +1,32 @@
 import React, { useState, useEffect } from 'react';
-import { 
-  View, 
-  Text, 
-  Button, 
-  Alert, 
-  ScrollView, 
+import {
+  View,
+  Text,
+  Button,
+  Alert,
+  ScrollView,
   StyleSheet,
   TouchableOpacity,
   FlatList,
   Modal,
   TextInput
 } from 'react-native';
-import { getLoanById, deleteLoan, addPayment } from '../services/api';
-import { format } from 'date-fns'; // Consider adding this package for date formatting
+import { getLoanById, deleteLoan, addPayment, deletePayment, updatePayment } from '../services/api';
 
 const LoanDetailScreen = ({ route, navigation }) => {
   const { loanId } = route.params;
   const [loan, setLoan] = useState(null);
   const [loading, setLoading] = useState(true);
   const [modalVisible, setModalVisible] = useState(false);
+  const [editInstallmentModalVisible, setEditInstallmentModalVisible] = useState(false);
+  const [editPaymentModalVisible, setEditPaymentModalVisible] = useState(false); // Added missing state
   const [paymentAmount, setPaymentAmount] = useState('');
-  const [paymentOption, setPaymentOption] = useState('full'); // 'full', 'installment'
+  const [paymentOption, setPaymentOption] = useState('full');
   const [numberOfInstallments, setNumberOfInstallments] = useState('');
-  const [installmentFrequency, setInstallmentFrequency] = useState('monthly'); // 'weekly', 'monthly'
+  const [installmentFrequency, setInstallmentFrequency] = useState('monthly');
+  const [sameWeekPayments, setSameWeekPayments] = useState(1);
+  const [selectedPayment, setSelectedPayment] = useState(null); // Changed from selectedPaymentId to store full payment object
+  const [additionalPaymentAmount, setAdditionalPaymentAmount] = useState('');
 
   useEffect(() => {
     fetchLoan();
@@ -41,14 +45,137 @@ const LoanDetailScreen = ({ route, navigation }) => {
     }
   };
 
+  const handleDeletePayment = async (paymentId) => {
+    Alert.alert(
+      'Confirm Delete',
+      'Are you sure you want to delete this payment?',
+      [
+        { text: 'Cancel', style: 'cancel' },
+        {
+          text: 'Delete',
+          style: 'destructive',
+          onPress: async () => {
+            try {
+              await deletePayment(loanId, paymentId);
+              fetchLoan();
+              Alert.alert('Success', 'Payment deleted successfully');
+            } catch (error) {
+              Alert.alert('Error', 'Failed to delete payment');
+              console.error('Error deleting payment:', error);
+            }
+          }
+        }
+      ]
+    );
+  };
+
+  const handleEditInstallmentPlan = () => {
+    setEditInstallmentModalVisible(true);
+    const status = getInstallmentStatus();
+    if (status) {
+      setPaymentAmount((status.amount * status.total).toString());
+      setNumberOfInstallments(status.total.toString());
+      setInstallmentFrequency(status.frequency);
+    }
+  };
+
+  const handleUpdateInstallmentPlan = async () => {
+    try {
+      if (!paymentAmount || !numberOfInstallments) {
+        Alert.alert('Error', 'Please enter both amount and number of installments');
+        return;
+      }
+
+      const installmentPayments = loan.payments.filter(p => p.isInstallment);
+      for (const payment of installmentPayments) {
+        await deletePayment(loanId, payment.id);
+      }
+
+      const installmentAmount = parseFloat(paymentAmount) / parseInt(numberOfInstallments);
+      for (let i = 0; i < parseInt(numberOfInstallments); i++) {
+        await addPayment(loanId, {
+          amount: installmentAmount,
+          isInstallment: true,
+          installmentNumber: i + 1,
+          totalInstallments: parseInt(numberOfInstallments),
+          frequency: installmentFrequency
+        });
+      }
+
+      setEditInstallmentModalVisible(false);
+      setPaymentAmount('');
+      setNumberOfInstallments('');
+      fetchLoan();
+      Alert.alert('Success', 'Installment plan updated successfully');
+    } catch (error) {
+      Alert.alert('Error', 'Failed to update installment plan');
+      console.error('Error updating installment plan:', error);
+    }
+  };
+
+  const handleEditPayment = (payment) => {
+    setSelectedPayment(payment);
+    setAdditionalPaymentAmount(payment.amount.toString());
+    setEditPaymentModalVisible(true);
+  };
+
+  const handleUpdatePayment = async () => {
+    try {
+      if (!additionalPaymentAmount || isNaN(parseFloat(additionalPaymentAmount))) {
+        Alert.alert('Error', 'Please enter a valid amount');
+        return;
+      }
+
+      await updatePayment(loanId, selectedPayment.id, { amount: parseFloat(additionalPaymentAmount) });
+      setEditPaymentModalVisible(false);
+      setAdditionalPaymentAmount('');
+      setSelectedPayment(null);
+      fetchLoan();
+      Alert.alert('Success', 'Payment updated successfully');
+    } catch (error) {
+      Alert.alert('Error', 'Failed to update payment');
+      console.error('Error updating payment:', error);
+    }
+  };
+
+  const handleAddAdditionalPayment = async () => {
+    try {
+      const status = getInstallmentStatus();
+      if (!status) {
+        Alert.alert('Error', 'No existing installment plan found');
+        return;
+      }
+
+      const installmentNumber = status.completed + 1;
+      if (installmentNumber > status.total) {
+        Alert.alert('Error', 'All installments already completed');
+        return;
+      }
+
+      await addPayment(loanId, {
+        amount: status.amount,
+        isInstallment: true,
+        installmentNumber: installmentNumber,
+        totalInstallments: status.total,
+        frequency: status.frequency
+      });
+
+      fetchLoan();
+      Alert.alert('Success', 'Additional installment payment added');
+    } catch (error) {
+      Alert.alert('Error', 'Failed to add additional payment');
+      console.error('Error adding payment:', error);
+    }
+  };
+
   const handleDelete = async () => {
     Alert.alert(
       'Confirm Delete',
       'Are you sure you want to delete this loan?',
       [
         { text: 'Cancel', style: 'cancel' },
-        { 
-          text: 'Delete', 
+        {
+          text: 'Delete',
           style: 'destructive',
           onPress: async () => {
             try {
@@ -72,39 +199,43 @@ const LoanDetailScreen = ({ route, navigation }) => {
 
     try {
       if (paymentOption === 'full') {
-        // Process full payment
         await addPayment(loanId, { amount: parseFloat(paymentAmount) });
         setModalVisible(false);
         setPaymentAmount('');
         fetchLoan();
         Alert.alert('Success', 'Payment recorded successfully');
       } else {
-        // Process installment payment
-        if (!numberOfInstallments || isNaN(parseInt(numberOfInstallments)) || parseInt(numberOfInstallments) <= 0) {
+        if (!numberOfInstallments || isNaN(parseInt(numberOfInstallments))) {
           Alert.alert('Error', 'Please enter a valid number of installments');
           return;
         }
 
-        // Calculate installment amount
         const installmentAmount = parseFloat(paymentAmount) / parseInt(numberOfInstallments);
-        
-        // Record first installment payment
-        await addPayment(loanId, { 
-          amount: installmentAmount,
-          isInstallment: true,
-          installmentNumber: 1,
-          totalInstallments: parseInt(numberOfInstallments),
-          frequency: installmentFrequency
-        });
-        
+        if (installmentFrequency === 'weekly' && sameWeekPayments > 1) {
+          for (let i = 0; i < sameWeekPayments; i++) {
+            await addPayment(loanId, {
+              amount: installmentAmount,
+              isInstallment: true,
+              installmentNumber: i + 1,
+              totalInstallments: parseInt(numberOfInstallments),
+              frequency: installmentFrequency
+            });
+          }
+        } else {
+          await addPayment(loanId, {
+            amount: installmentAmount,
+            isInstallment: true,
+            installmentNumber: 1,
+            totalInstallments: parseInt(numberOfInstallments),
+            frequency: installmentFrequency
+          });
+        }
+
         setModalVisible(false);
         setPaymentAmount('');
         setNumberOfInstallments('');
         fetchLoan();
-        Alert.alert(
-          'Installment Plan Created',
-          `First installment of LKR${installmentAmount.toFixed(2)} recorded. ${parseInt(numberOfInstallments) - 1} installments remaining.`
-        );
+        Alert.alert('Success', 'Installment plan created');
       }
     } catch (error) {
       Alert.alert('Error', 'Failed to process payment');
@@ -114,26 +245,24 @@ const LoanDetailScreen = ({ route, navigation }) => {
 
   const calculateRemainingAmount = () => {
     if (!loan) return 0;
-    
     const totalPaid = loan.payments?.reduce((sum, payment) => sum + payment.amount, 0) || 0;
     return loan.amount - totalPaid;
   };
 
   const getInstallmentStatus = () => {
     if (!loan || !loan.payments) return null;
-    
+
     const installmentPayments = loan.payments.filter(payment => payment.isInstallment);
     if (installmentPayments.length === 0) return null;
-    
-    // Get the most recent installment plan
-    const latestInstallment = installmentPayments.sort((a, b) => 
+
+    const latestInstallment = installmentPayments.sort((a, b) =>
       new Date(b.paymentDate) - new Date(a.paymentDate)
     )[0];
-    
-    const completedInstallments = installmentPayments.filter(p => 
+
+    const completedInstallments = installmentPayments.filter(p =>
       p.totalInstallments === latestInstallment.totalInstallments
     ).length;
-    
+
     return {
       completed: completedInstallments,
       total: latestInstallment.totalInstallments,
@@ -177,33 +306,28 @@ const LoanDetailScreen = ({ route, navigation }) => {
       <View style={styles.card}>
         <Text style={styles.cardTitle}>Loan Details</Text>
         <Text style={styles.borrowerName}>{loan.name}</Text>
-        
         <View style={styles.detailRow}>
           <Text style={styles.detailLabel}>Original Amount:</Text>
           <Text style={styles.detailValue}>LKR:{loan.amount.toFixed(2)}</Text>
         </View>
-        
         <View style={styles.detailRow}>
           <Text style={styles.detailLabel}>Due Date:</Text>
           <Text style={styles.detailValue}>{formatDate(loan.dueDate)}</Text>
         </View>
-        
         <View style={styles.detailRow}>
           <Text style={styles.detailLabel}>Total Paid:</Text>
           <Text style={styles.detailValue}>LKR:{(loan.amount - remainingAmount).toFixed(2)}</Text>
         </View>
-        
         <View style={styles.detailRow}>
           <Text style={styles.detailLabel}>Remaining Balance:</Text>
           <Text style={[
-            styles.detailValue, 
+            styles.detailValue,
             styles.balanceText,
             remainingAmount <= 0 ? styles.paidOffText : null
           ]}>
             LKR:{Math.max(0, remainingAmount).toFixed(2)}
           </Text>
         </View>
-
         {remainingAmount <= 0 && (
           <View style={styles.paidOffBadge}>
             <Text style={styles.paidOffBadgeText}>PAID OFF</Text>
@@ -214,7 +338,17 @@ const LoanDetailScreen = ({ route, navigation }) => {
       {/* Installment Status Card */}
       {installmentStatus && (
         <View style={styles.card}>
-          <Text style={styles.cardTitle}>Installment Plan</Text>
+          <View style={styles.cardHeader}>
+            <Text style={styles.cardTitle}>Installment Plan</Text>
+            <View style={styles.headerButtons}>
+              <TouchableOpacity onPress={handleEditInstallmentPlan}>
+                <Text style={styles.editText}>Edit Plan</Text>
+              </TouchableOpacity>
+              <TouchableOpacity onPress={handleAddAdditionalPayment}>
+                <Text style={styles.addText}>Add Payment</Text>
+              </TouchableOpacity>
+            </View>
+          </View>
           <View style={styles.detailRow}>
             <Text style={styles.detailLabel}>Progress:</Text>
             <Text style={styles.detailValue}>
@@ -225,14 +359,12 @@ const LoanDetailScreen = ({ route, navigation }) => {
             <Text style={styles.detailLabel}>Each Payment:</Text>
             <Text style={styles.detailValue}>LKR:{installmentStatus.amount.toFixed(2)}</Text>
           </View>
-          
-          {/* Progress Bar */}
           <View style={styles.progressBarContainer}>
-            <View 
+            <View
               style={[
-                styles.progressBar, 
+                styles.progressBar,
                 { width: `${(installmentStatus.completed / installmentStatus.total) * 100}%` }
-              ]} 
+              ]}
             />
           </View>
           <Text style={styles.progressText}>
@@ -250,7 +382,10 @@ const LoanDetailScreen = ({ route, navigation }) => {
             keyExtractor={(item) => item.id.toString()}
             scrollEnabled={false}
             renderItem={({ item }) => (
-              <View style={styles.paymentItem}>
+              <TouchableOpacity
+                style={styles.paymentItem}
+                onPress={() => item.isInstallment && handleEditPayment(item)}
+              >
                 <View>
                   <Text style={styles.paymentDate}>{formatDate(item.paymentDate)}</Text>
                   {item.isInstallment && (
@@ -259,8 +394,16 @@ const LoanDetailScreen = ({ route, navigation }) => {
                     </Text>
                   )}
                 </View>
-                <Text style={styles.paymentAmount}>LKR:{item.amount.toFixed(2)}</Text>
-              </View>
+                <View style={styles.paymentRight}>
+                  <Text style={styles.paymentAmount}>LKR:{item.amount.toFixed(2)}</Text>
+                  <TouchableOpacity
+                    style={styles.deletePaymentButton}
+                    onPress={() => handleDeletePayment(item.id)}
+                  >
+                    <Text style={styles.deletePaymentText}>Delete</Text>
+                  </TouchableOpacity>
+                </View>
+              </TouchableOpacity>
             )}
           />
         ) : (
@@ -270,16 +413,15 @@ const LoanDetailScreen = ({ route, navigation }) => {
 
       {/* Actions */}
       <View style={styles.buttonContainer}>
-        <TouchableOpacity 
-          style={[styles.button, styles.paymentButton]} 
+        <TouchableOpacity
+          style={[styles.button, styles.paymentButton]}
           onPress={() => setModalVisible(true)}
           disabled={remainingAmount <= 0}
         >
           <Text style={styles.buttonText}>Make Payment</Text>
         </TouchableOpacity>
-        
-        <TouchableOpacity 
-          style={[styles.button, styles.deleteButton]} 
+        <TouchableOpacity
+          style={[styles.button, styles.deleteButton]}
           onPress={handleDelete}
         >
           <Text style={styles.buttonText}>Delete Loan</Text>
@@ -296,7 +438,6 @@ const LoanDetailScreen = ({ route, navigation }) => {
         <View style={styles.modalOverlay}>
           <View style={styles.modalContent}>
             <Text style={styles.modalTitle}>Make a Payment</Text>
-            
             <TextInput
               style={styles.input}
               placeholder="Payment Amount"
@@ -304,7 +445,6 @@ const LoanDetailScreen = ({ route, navigation }) => {
               onChangeText={setPaymentAmount}
               keyboardType="numeric"
             />
-            
             <View style={styles.paymentOptions}>
               <TouchableOpacity
                 style={[
@@ -315,7 +455,6 @@ const LoanDetailScreen = ({ route, navigation }) => {
               >
                 <Text style={styles.optionText}>Full Payment</Text>
               </TouchableOpacity>
-              
               <TouchableOpacity
                 style={[
                   styles.paymentOptionButton,
@@ -326,7 +465,6 @@ const LoanDetailScreen = ({ route, navigation }) => {
                 <Text style={styles.optionText}>Installment Plan</Text>
               </TouchableOpacity>
             </View>
-
             {paymentOption === 'installment' && (
               <View style={styles.installmentContainer}>
                 <TextInput
@@ -336,7 +474,6 @@ const LoanDetailScreen = ({ route, navigation }) => {
                   onChangeText={setNumberOfInstallments}
                   keyboardType="numeric"
                 />
-                
                 <View style={styles.frequencyOptions}>
                   <TouchableOpacity
                     style={[
@@ -347,7 +484,6 @@ const LoanDetailScreen = ({ route, navigation }) => {
                   >
                     <Text style={styles.frequencyText}>Weekly</Text>
                   </TouchableOpacity>
-                  
                   <TouchableOpacity
                     style={[
                       styles.frequencyButton,
@@ -358,15 +494,25 @@ const LoanDetailScreen = ({ route, navigation }) => {
                     <Text style={styles.frequencyText}>Monthly</Text>
                   </TouchableOpacity>
                 </View>
-                
                 {paymentAmount && numberOfInstallments ? (
                   <Text style={styles.installmentCalculation}>
                     Each installment: LKR:{(parseFloat(paymentAmount) / parseInt(numberOfInstallments)).toFixed(2)}
                   </Text>
                 ) : null}
+                {installmentFrequency === 'weekly' && (
+                  <View style={styles.sameWeekContainer}>
+                    <Text style={styles.sameWeekLabel}>Payments this week:</Text>
+                    <TextInput
+                      style={styles.input}
+                      placeholder="Number of payments"
+                      value={sameWeekPayments.toString()}
+                      onChangeText={(text) => setSameWeekPayments(parseInt(text) || 1)}
+                      keyboardType="numeric"
+                    />
+                  </View>
+                )}
               </View>
             )}
-            
             <View style={styles.modalButtons}>
               <TouchableOpacity
                 style={[styles.modalButton, styles.cancelButton]}
@@ -379,12 +525,117 @@ const LoanDetailScreen = ({ route, navigation }) => {
               >
                 <Text style={styles.modalButtonText}>Cancel</Text>
               </TouchableOpacity>
-              
               <TouchableOpacity
                 style={[styles.modalButton, styles.confirmButton]}
                 onPress={handlePayment}
               >
                 <Text style={styles.modalButtonText}>Confirm</Text>
+              </TouchableOpacity>
+            </View>
+          </View>
+        </View>
+      </Modal>
+
+      {/* Edit Installment Plan Modal */}
+      <Modal
+        animationType="slide"
+        transparent={true}
+        visible={editInstallmentModalVisible}
+        onRequestClose={() => setEditInstallmentModalVisible(false)}
+      >
+        <View style={styles.modalOverlay}>
+          <View style={styles.modalContent}>
+            <Text style={styles.modalTitle}>Edit Installment Plan</Text>
+            <TextInput
+              style={styles.input}
+              placeholder="Total Amount"
+              value={paymentAmount}
+              onChangeText={setPaymentAmount}
+              keyboardType="numeric"
+            />
+            <TextInput
+              style={styles.input}
+              placeholder="Number of Installments"
+              value={numberOfInstallments}
+              onChangeText={setNumberOfInstallments}
+              keyboardType="numeric"
+            />
+            <View style={styles.frequencyOptions}>
+              <TouchableOpacity
+                style={[
+                  styles.frequencyButton,
+                  installmentFrequency === 'weekly' ? styles.selectedFrequency : null
+                ]}
+                onPress={() => setInstallmentFrequency('weekly')}
+              >
+                <Text style={styles.frequencyText}>Weekly</Text>
+              </TouchableOpacity>
+              <TouchableOpacity
+                style={[
+                  styles.frequencyButton,
+                  installmentFrequency === 'monthly' ? styles.selectedFrequency : null
+                ]}
+                onPress={() => setInstallmentFrequency('monthly')}
+              >
+                <Text style={styles.frequencyText}>Monthly</Text>
+              </TouchableOpacity>
+            </View>
+            {paymentAmount && numberOfInstallments && (
+              <Text style={styles.installmentCalculation}>
+                Each installment: LKR:{(parseFloat(paymentAmount) / parseInt(numberOfInstallments)).toFixed(2)}
+              </Text>
+            )}
+            <View style={styles.modalButtons}>
+              <TouchableOpacity
+                style={[styles.modalButton, styles.cancelButton]}
+                onPress={() => setEditInstallmentModalVisible(false)}
+              >
+                <Text style={styles.modalButtonText}>Cancel</Text>
+              </TouchableOpacity>
+              <TouchableOpacity
+                style={[styles.modalButton, styles.confirmButton]}
+                onPress={handleUpdateInstallmentPlan}
+              >
+                <Text style={styles.modalButtonText}>Update</Text>
+              </TouchableOpacity>
+            </View>
+          </View>
+        </View>
+      </Modal>
+
+      {/* Edit Payment Modal */}
+      <Modal
+        animationType="slide"
+        transparent={true}
+        visible={editPaymentModalVisible}
+        onRequestClose={() => setEditPaymentModalVisible(false)}
+      >
+        <View style={styles.modalOverlay}>
+          <View style={styles.modalContent}>
+            <Text style={styles.modalTitle}>Edit Installment Payment</Text>
+            <TextInput
+              style={styles.input}
+              placeholder="Payment Amount"
+              value={additionalPaymentAmount}
+              onChangeText={setAdditionalPaymentAmount}
+              keyboardType="numeric"
+            />
+            <View style={styles.modalButtons}>
+              <TouchableOpacity
+                style={[styles.modalButton, styles.cancelButton]}
+                onPress={() => {
+                  setEditPaymentModalVisible(false);
+                  setAdditionalPaymentAmount('');
+                  setSelectedPayment(null);
+                }}
+              >
+                <Text style={styles.modalButtonText}>Cancel</Text>
+              </TouchableOpacity>
+              <TouchableOpacity
+                style={[styles.modalButton, styles.confirmButton]}
+                onPress={handleUpdatePayment}
+              >
+                <Text style={styles.modalButtonText}>Update</Text>
               </TouchableOpacity>
             </View>
           </View>
@@ -644,6 +895,46 @@ const styles = StyleSheet.create({
     fontWeight: 'bold',
     fontSize: 16,
     color: '#333',
+  },
+  cardHeader: {
+    flexDirection: 'row',
+    justifyContent: 'space-between',
+    alignItems: 'center',
+    marginBottom: 12,
+  },
+  editText: {
+    color: '#2196F3',
+    fontSize: 16,
+    fontWeight: '500',
+  },
+  paymentRight: {
+    flexDirection: 'row',
+    alignItems: 'center',
+  },
+  deletePaymentButton: {
+    marginLeft: 10,
+    padding: 5,
+  },
+  deletePaymentText: {
+    color: '#F44336',
+    fontSize: 14,
+  },
+  sameWeekContainer: {
+    marginTop: 10,
+  },
+  sameWeekLabel: {
+    fontSize: 14,
+    color: '#666',
+    marginBottom: 5,
+  },
+  headerButtons: {
+    flexDirection: 'row',
+    gap: 10,
+  },
+  addText: {
+    color: '#4CAF50',
+    fontSize: 16,
+    fontWeight: '500',
   },
 });
 

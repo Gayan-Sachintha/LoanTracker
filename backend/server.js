@@ -84,5 +84,20 @@ app.get('/loans/health', (req, res) => {
   res.status(200).json({ status: 'ok' });
 });
 
+app.put('/loans/:loanId/payments/:paymentId', async (req, res) => {
+  try {
+    const { amount } = req.body;
+    const updatedPayment = await Loan.updatePayment(
+      parseInt(req.params.loanId),
+      parseInt(req.params.paymentId),
+      { amount }
+    );
+    res.json(updatedPayment);
+  } catch (error) {
+    console.error(`Error updating payment ${req.params.paymentId}:`, error);
+    res.status(500).json({ error: 'Failed to update payment' });
+  }
+});
+
 // Initialize the server
 initializeServer();

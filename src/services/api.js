@@ -125,3 +125,68 @@ export const addPayment = async (loanId, payment) => {
       return { data: offlinePayment };
     }
   };
+
+  export const deletePayment = async (loanId, paymentId) => {
+    try {
+      if (await isServerAvailable()) {
+        await axios.delete(`${API_URL}/loans/${loanId}/payments/${paymentId}`);
+      }
+      // Update local storage
+      const loans = await getLoansFromStorage();
+      const updatedLoans = loans.map(loan => {
+        if (loan.id === loanId) {
+          loan.payments = loan.payments.filter(payment => payment.id !== paymentId);
+        }
+        return loan;
+      });
+      await saveLoansToStorage(updatedLoans);
+      return { success: true };
+    } catch (error) {
+      console.error(`Error deleting payment ${paymentId}:`, error);
+      // Still try to delete from local storage on error
+      const loans = await getLoansFromStorage();
+      const updatedLoans = loans.map(loan => {
+        if (loan.id === loanId) {
+          loan.payments = loan.payments.filter(payment => payment.id !== paymentId);
+        }
+        return loan;
+      });
+      await saveLoansToStorage(updatedLoans);
+      return { success: true };
+    }
+  };
+
+  export const updatePayment = async (loanId, paymentId, paymentData) => {
+    try {
+      if (await isServerAvailable()) {
+        const response = await axios.put(`${API_URL}/loans/${loanId}/payments/${paymentId}`, paymentData);
+        const loans = await getLoansFromStorage();
+        const updatedLoans = loans.map(loan => {
+          if (loan.id === loanId) {
+            loan.payments = loan.payments.map(payment => 
+              payment.id === paymentId ? { ...payment, ...paymentData } : payment
+            );
+          }
+          return loan;
+        });
+        await saveLoansToStorage(updatedLoans);
+        return response;
+      } else {
+        const loans = await getLoansFromStorage();
+        const updatedLoans = loans.map(loan => {
+          if (loan.id === loanId) {
+            loan.payments = loan.payments.map(payment => 
+              payment.id === paymentId ? { ...payment, ...paymentData } : payment
+            );
+          }
+          return loan;
+        });
+        await saveLoansToStorage(updatedLoans);
+        return { data: { ...paymentData, id: paymentId, loanId } };
+      }
+    } catch (error) {
+      console.error(`Error updating payment ${paymentId}:`, error);
+      throw error;
+    }
+  };
+  
