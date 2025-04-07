@@ -19,13 +19,13 @@ const LoanDetailScreen = ({ route, navigation }) => {
   const [loading, setLoading] = useState(true);
   const [modalVisible, setModalVisible] = useState(false);
   const [editInstallmentModalVisible, setEditInstallmentModalVisible] = useState(false);
-  const [editPaymentModalVisible, setEditPaymentModalVisible] = useState(false); // Added missing state
+  const [editPaymentModalVisible, setEditPaymentModalVisible] = useState(false); 
   const [paymentAmount, setPaymentAmount] = useState('');
   const [paymentOption, setPaymentOption] = useState('full');
   const [numberOfInstallments, setNumberOfInstallments] = useState('');
   const [installmentFrequency, setInstallmentFrequency] = useState('monthly');
   const [sameWeekPayments, setSameWeekPayments] = useState(1);
-  const [selectedPayment, setSelectedPayment] = useState(null); // Changed from selectedPaymentId to store full payment object
+  const [selectedPayment, setSelectedPayment] = useState(null); 
   const [additionalPaymentAmount, setAdditionalPaymentAmount] = useState('');
 
   useEffect(() => {
